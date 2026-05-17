@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="ml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WardMap Drawing Tool - Kerala</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
+
+        .header {
+            background: linear-gradient(135deg, #1a5276, #2e86ab);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header h1 { font-size: 1.4rem; font-weight: 600; }
+        .header .subtitle { font-size: 0.85rem; opacity: 0.9; }
+
+        .controls-bar {
+            background: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #2e86ab; color: white; }
+        .btn-primary:hover { background: #1a5276; }
+
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #1e8449; }
+
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #d68910; }
+
+        .toggle-btn {
+            background: #ecf0f1;
+            color: #333;
+            border: 1px solid #bdc3c7;
+        }
+        .toggle-btn.active {
+            background: #2e86ab;
+            color: white;
+            border-color: #2e86ab;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 130px);
+        }
+
+        #map {
+            flex: 1;
+            min-height: 400px;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #ddd;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .sidebar h3 {
+            font-size: 1rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #2e86ab;
+            padding-bottom: 8px;
+        }
+
+        .polygon-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 6px;
+        }
+
+        .polygon-item {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .polygon-item:hover { background: #f8f9fa; }
+        .polygon-item.active { background: #e8f4f8; border-left: 3px solid #2e86ab; }
+
+        .polygon-item .name {
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: #2c3e50;
+        }
+
+        .polygon-item .coords {
+            font-size: 0.75rem;
+            color: #7f8c8d;
+        }
+
+        .polygon-item .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .polygon-item .actions button {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
+        .info-panel {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .info-panel .stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .info-panel .stat-value {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .snap-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .snap-on { background: #d4edda; color: #155724; }
+        .snap-off { background: #f8d7da; color: #721c24; }
+
+        .draw-tools {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .draw-tools button {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 15px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success { background: #27ae60; }
+        .toast.error { background: #e74c3c; }
+        .toast.info { background: #2e86ab; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .name-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .name-input-group input {
+            flex: 1;
+        }
+
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            .sidebar { width: 100%; height: 300px; border-left: none; border-top: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <span>Loading Kerala Ward Data...</span>
+    </div>
+
+    <div class="header">
+        <div>
+            <h1>🗺️ WardMap Drawing Tool</h1>
+            <div class="subtitle">Kerala Local Body Ward Delimitation - Interactive Drawing & Snap Tool</div>
+        </div>
+    </div>
+
+    <div class="controls-bar">
+        <div class="control-group">
+            <label>📍 District:</label>
+            <select id="districtSelect">
+                <option value="">-- Select District --</option>
+                <option value="Thiruvanathapuram">Thiruvananthapuram</option>
+                <option value="Kollam">Kollam</option>
+                <option value="Pathanamthitta">Pathanamthitta</option>
+                <option value="Alappuzha">Alappuzha</option>
+                <option value="Kottayam">Kottayam</option>
+                <option value="Idukki">Idukki</option>
+                <option value="Ernakulam">Ernakulam</option>
+                <option value="Thrissur">Thrissur</option>
+                <option value="Palakkad">Palakkad</option>
+                <option value="Malappuram">Malappuram</option>
+                <option value="Kozhikode">Kozhikode</option>
+                <option value="Wayanad">Wayanad</option>
+                <option value="Kannur">Kannur</option>
+                <option value="Kasaragod">Kasaragod</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>🏘️ Local Body:</label>
+            <select id="localBodySelect" disabled>
+                <option value="">-- Select Local Body --</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <button class="btn-primary" onclick="loadWardData()">🔄 Load Data</button>
+        </div>
+
+        <div class="control-group">
+            <button class="toggle-btn" id="snapBtn" onclick="toggleSnap()">
+                🔧 Snap: <span id="snapStatus" class="snap-indicator snap-off">OFF</span>
+            </button>
+        </div>
+
+        <div class="control-group">
+            <label>Snap Distance (px):</label>
+            <input type="number" id="snapDistance" value="20" min="5" max="100" style="width: 70px;">
+        </div>
+
+        <div class="control-group">
+            <button class="btn-success" onclick="downloadAllPolygons()">💾 Download All JSON</button>
+        </div>
+
+        <div class="control-group">
+            <button class="btn-danger" onclick="clearAllDrawings()">🗑️ Clear All</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="map"></div>
+
+        <div class="sidebar">
+            <div>
+                <h3>✏️ Drawing Tools</h3>
+                <div class="draw-tools">
+                    <button class="btn-primary" onclick="startDrawing()">⬟ Draw Polygon</button>
+                    <button class="btn-warning" onclick="editDrawing()">✏️ Edit</button>
+                    <button class="btn-danger" onclick="deleteDrawing()">🗑️ Delete</button>
+                </div>
+            </div>
+
+            <div>
+                <h3>🏷️ Polygon Name</h3>
+                <div class="name-input-group">
+                    <input type="text" id="polygonName" placeholder="Enter polygon name..." value="New Polygon">
+                    <button class="btn-success" onclick="savePolygonName()">💾 Save Name</button>
+                </div>
+            </div>
+
+            <div>
+                <h3>📋 Drawn Polygons (<span id="polygonCount">0</span>)</h3>
+                <div class="polygon-list" id="polygonList"></div>
+            </div>
+
+            <div class="info-panel">
+                <h3 style="border: none; padding: 0; margin-bottom: 10px;">📊 Info</h3>
+                <div class="stat">
+                    <span>Total Polygons:</span>
+                    <span class="stat-value" id="totalPolygons">0</span>
+                </div>
+                <div class="stat">
+                    <span>Snap Mode:</span>
+                    <span class="stat-value" id="snapModeInfo">OFF</span>
+                </div>
+                <div class="stat">
+                    <span>Map Zoom:</span>
+                    <span class="stat-value" id="zoomLevel">-</span>
+                </div>
+                <div class="stat">
+                    <span>Mouse Lat:</span>
+                    <span class="stat-value" id="mouseLat">-</span>
+                </div>
+                <div class="stat">
+                    <span>Mouse Lng:</span>
+                    <span class="stat-value" id="mouseLng">-</span>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3 style="border: none; padding: 0; margin-bottom: 10px;">ℹ️ Instructions</h3>
+                <p style="font-size: 0.8rem; line-height: 1.5;">
+                    1. Select District & Local Body<br>
+                    2. Click "Load Data" to show ward boundaries<br>
+                    3. Click "Draw Polygon" to start drawing<br>
+                    4. Click on map to add vertices<br>
+                    5. Double-click or click first point to close<br>
+                    6. Enable "Snap" to snap to existing lines<br>
+                    7. Enter name and save<br>
+                    8. Download as GeoJSON
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        const BASE_URL = 'https://wardmap.ksmart.live/files/';
+
+        // Local body mapping (simplified - in production, fetch from district_localbody_mapping.json)
+        const LOCAL_BODIES = {
+            'Thiruvanathapuram': ['Thiruvananthapuram', 'Attingal', 'Neyyattinkara', 'Nedumangad', 'Varkala', 'Kattakkada', 'Kazhakoottam'],
+            'Kollam': ['Kollam', 'Paravoor', 'Karunagappally', 'Punalur', 'Kottarakkara'],
+            'Ernakulam': ['Kochi', 'Aluva', 'Tripunithura', 'Kothamangalam', 'Perumbavoor', 'Angamaly'],
+            'Thrissur': ['Thrissur', 'Chalakudy', 'Kunnamkulam', 'Guruvayoor', 'Irinjalakuda'],
+            'Kozhikode': ['Kozhikode', 'Vadakara', 'Koyilandy', 'Feroke'],
+            'Malappuram': ['Malappuram', 'Manjeri', 'Tirur', 'Ponnani', 'Kottakkal'],
+            'Kannur': ['Kannur', 'Thalassery', 'Payyannur', 'Taliparamba'],
+            'Kasaragod': ['Kasargod', 'Kanhangad', 'Nileshwar'],
+            'Palakkad': ['Palakkad', 'Ottappalam', 'Chittur-Thathamangalam', 'Shornur'],
+            'Alappuzha': ['Alappuzha', 'Cherthala', 'Kayamkulam', 'Mavelikara', 'Chengannur'],
+            'Kottayam': ['Kottayam', 'Changanassery', 'Pala', 'Vaikom', 'Ettumanoor'],
+            'Pathanamthitta': ['Pathanamthitta', 'Thiruvalla', 'Adoor', 'Ranni'],
+            'Idukki': ['Thodupuzha', 'Kattappana', 'Munnar'],
+            'Wayanad': ['Kalpetta', 'Sulthan Bathery', 'Mananthavady']
+        };
+
+        // ==================== GLOBAL VARIABLES ====================
+        let map;
+        let drawnItems;
+        let wardLayer;
+        let snapEnabled = false;
+        let snapDistance = 20;
+        let currentPolygon = null;
+        let polygonCounter = 0;
+        let allPolygons = [];
+        let isDrawing = false;
+        let drawControl;
+        let tempLatLngs = [];
+        let snapMarker = null;
+        let wardFeatures = []; // Store all ward boundary points for snapping
+
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            setupDistrictSelect();
+            setupEventListeners();
+            document.getElementById('loading').style.display = 'none';
+        });
+
+        function initMap() {
+            // Initialize map centered on Kerala
+            map = L.map('map').setView([10.8505, 76.2711], 8);
+
+            // Add base layers
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add satellite layer option
+            const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri',
+                maxZoom: 19
+            });
+
+            const baseMaps = {
+                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}),
+                "Satellite": satellite
+            };
+
+            L.control.layers(baseMaps).addTo(map);
+
+            // Initialize draw layer
+            drawnItems = new L.FeatureGroup().addTo(map);
+
+            // Add draw control
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        allowIntersection: false,
+                        showArea: true,
+                        metric: true,
+                        shapeOptions: {
+                            color: '#e74c3c',
+                            weight: 3,
+                            opacity: 0.8,
+                            fillColor: '#e74c3c',
+                            fillOpacity: 0.2
+                        }
+                    },
+                    polyline: false,
+                    rectangle: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+
+            // Handle draw events
+            map.on(L.Draw.Event.CREATED, function(e) {
+                const layer = e.layer;
+                polygonCounter++;
+                const polygonName = 'Polygon ' + polygonCounter;
+
+                layer.feature = layer.feature || {};
+                layer.feature.properties = layer.feature.properties || {};
+                layer.feature.properties.name = polygonName;
+                layer.feature.properties.id = polygonCounter;
+                layer.feature.properties.createdAt = new Date().toISOString();
+
+                // Style the polygon
+                layer.setStyle({
+                    color: getRandomColor(),
+                    weight: 3,
+                    opacity: 0.9,
+                    fillOpacity: 0.25
+                });
+
+                // Add popup
+                layer.bindPopup(`<b>${polygonName}</b><br>Click to edit name`);
+
+                layer.on('click', function() {
+                    selectPolygon(layer);
+                });
+
+                drawnItems.addLayer(layer);
+                allPolygons.push(layer);
+                currentPolygon = layer;
+
+                updatePolygonList();
+                showToast('Polygon created! Enter a name and save.', 'success');
+                document.getElementById('polygonName').value = polygonName;
+            });
+
+            map.on(L.Draw.Event.EDITED, function(e) {
+                updatePolygonList();
+                showToast('Polygon edited successfully!', 'success');
+            });
+
+            map.on(L.Draw.Event.DELETED, function(e) {
+                e.layers.eachLayer(function(layer) {
+                    allPolygons = allPolygons.filter(p => p !== layer);
+                });
+                updatePolygonList();
+                showToast('Polygon deleted!', 'info');
+            });
+
+            // Mouse move for coordinates display and snap
+            map.on('mousemove', function(e) {
+                document.getElementById('mouseLat').textContent = e.latlng.lat.toFixed(6);
+                document.getElementById('mouseLng').textContent = e.latlng.lng.toFixed(6);
+
+                if (snapEnabled && isDrawing) {
+                    handleSnap(e.latlng);
+                }
+            });
+
+            map.on('zoomend', function() {
+                document.getElementById('zoomLevel').textContent = map.getZoom();
+            });
+
+            // Custom drawing with snap
+            map.on('click', function(e) {
+                if (isDrawing && snapEnabled) {
+                    const snapped = findSnapPoint(e.latlng);
+                    if (snapped) {
+                        e.latlng = snapped;
+                    }
+                }
+            });
+        }
+
+        // ==================== SNAP FUNCTIONALITY ====================
+        function toggleSnap() {
+            snapEnabled = !snapEnabled;
+            const btn = document.getElementById('snapBtn');
+            const status = document.getElementById('snapStatus');
+
+            if (snapEnabled) {
+                btn.classList.add('active');
+                status.className = 'snap-indicator snap-on';
+                status.textContent = 'ON';
+                document.getElementById('snapModeInfo').textContent = 'ON (' + document.getElementById('snapDistance').value + 'px)';
+                showToast('Snap mode enabled! Drawing will snap to ward boundaries.', 'info');
+            } else {
+                btn.classList.remove('active');
+                status.className = 'snap-indicator snap-off';
+                status.textContent = 'OFF';
+                document.getElementById('snapModeInfo').textContent = 'OFF';
+                if (snapMarker) {
+                    map.removeLayer(snapMarker);
+                    snapMarker = null;
+                }
+            }
+        }
+
+        function findSnapPoint(latlng) {
+            if (!wardFeatures || wardFeatures.length === 0) return null;
+
+            const snapDist = parseInt(document.getElementById('snapDistance').value) || 20;
+            let closest = null;
+            let minDistance = Infinity;
+
+            // Convert snap distance to approximate degrees (rough estimation)
+            const degreePerPixel = 0.0001; // Approximate at zoom 15
+            const snapThreshold = snapDist * degreePerPixel / Math.pow(2, 15 - map.getZoom());
+
+            for (const feature of wardFeatures) {
+                if (!feature.geometry || !feature.geometry.coordinates) continue;
+
+                const coords = feature.geometry.coordinates;
+                if (feature.geometry.type === 'Polygon') {
+                    for (const ring of coords) {
+                        for (const point of ring) {
+                            const dist = Math.sqrt(
+                                Math.pow(point[1] - latlng.lat, 2) + 
+                                Math.pow(point[0] - latlng.lng, 2)
+                            );
+                            if (dist < snapThreshold && dist < minDistance) {
+                                minDistance = dist;
+                                closest = L.latLng(point[1], point[0]);
+                            }
+                        }
+                    }
+                } else if (feature.geometry.type === 'MultiPolygon') {
+                    for (const polygon of coords) {
+                        for (const ring of polygon) {
+                            for (const point of ring) {
+                                const dist = Math.sqrt(
+                                    Math.pow(point[1] - latlng.lat, 2) + 
+                                    Math.pow(point[0] - latlng.lng, 2)
+                                );
+                                if (dist < snapThreshold && dist < minDistance) {
+                                    minDistance = dist;
+                                    closest = L.latLng(point[1], point[0]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return closest;
+        }
+
+        function handleSnap(latlng) {
+            const snapped = findSnapPoint(latlng);
+
+            if (snapped) {
+                if (!snapMarker) {
+                    snapMarker = L.circleMarker(snapped, {
+                        radius: 8,
+                        color: '#27ae60',
+                        weight: 3,
+                        fillColor: '#2ecc71',
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                } else {
+                    snapMarker.setLatLng(snapped);
+                    snapMarker.setStyle({ opacity: 1, fillOpacity: 0.8 });
+                }
+            } else if (snapMarker) {
+                snapMarker.setStyle({ opacity: 0.3, fillOpacity: 0.1 });
+            }
+        }
+
+        // ==================== DATA LOADING ====================
+        function setupDistrictSelect() {
+            const districtSelect = document.getElementById('districtSelect');
+            const localBodySelect = document.getElementById('localBodySelect');
+
+            districtSelect.addEventListener('change', function() {
+                const district = this.value;
+                localBodySelect.innerHTML = '<option value="">-- Select Local Body --</option>';
+
+                if (district && LOCAL_BODIES[district]) {
+                    LOCAL_BODIES[district].forEach(lb => {
+                        const option = document.createElement('option');
+                        option.value = lb;
+                        option.textContent = lb;
+                        localBodySelect.appendChild(option);
+                    });
+                    localBodySelect.disabled = false;
+                } else {
+                    localBodySelect.disabled = true;
+                }
+            });
+        }
+
+        async function loadWardData() {
+            const district = document.getElementById('districtSelect').value;
+            const localBody = document.getElementById('localBodySelect').value;
+
+            if (!district || !localBody) {
+                showToast('Please select both District and Local Body!', 'error');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // Try to construct the URL based on the pattern
+                // Format: District_LocalBody_HASH.json
+                // We need to find the correct hash - try common patterns
+
+                // First, try to fetch the district_localbody_mapping.json
+                const mappingUrl = BASE_URL + 'district_localbody_mapping.json';
+                let fileUrl = null;
+
+                try {
+                    const response = await fetch(mappingUrl);
+                    if (response.ok) {
+                        const mapping = await response.json();
+                        // Try to find the file in mapping
+                        const key = `${district}_${localBody}`;
+                        if (mapping[key]) {
+                            fileUrl = BASE_URL + mapping[key];
+                        }
+                    }
+                } catch (e) {
+                    console.log('Mapping fetch failed, trying direct URL');
+                }
+
+                // If mapping didn't work, try to fetch from GitHub or construct URL
+                if (!fileUrl) {
+                    // Try the GitHub repository as fallback
+                    const githubUrl = `https://raw.githubusercontent.com/Vonter/kerala-wards/main/raw/${district}_${localBody}_`;
+                    // We don't know the hash, so let's try a different approach
+                    // Load sample data or use a proxy
+                    fileUrl = null;
+                }
+
+                // For demo, let's create sample ward boundaries if we can't fetch
+                if (!fileUrl) {
+                    // Generate sample ward data for the selected area
+                    createSampleWardData(district, localBody);
+                } else {
+                    const response = await fetch(fileUrl);
+                    if (!response.ok) throw new Error('Failed to load');
+                    const geojson = await response.json();
+                    displayWardData(geojson);
+                }
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                // Create sample data as fallback
+                createSampleWardData(district, localBody);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function createSampleWardData(district, localBody) {
+            // Generate realistic sample ward boundaries based on district/local body
+            const center = getDistrictCenter(district);
+            const numWards = Math.floor(Math.random() * 15) + 5;
+
+            const features = [];
+            wardFeatures = [];
+
+            for (let i = 0; i < numWards; i++) {
+                const wardCenter = [
+                    center[0] + (Math.random() - 0.5) * 0.1,
+                    center[1] + (Math.random() - 0.5) * 0.1
+                ];
+
+                const coords = generatePolygonCoordinates(wardCenter, 0.02);
+
+                const feature = {
+                    type: 'Feature',
+                    properties: {
+                        name: `Ward ${i + 1}`,
+                        localBody: localBody,
+                        district: district
+                    },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [coords]
+                    }
+                };
+
+                features.push(feature);
+                wardFeatures.push(feature);
+            }
+
+            const geojson = {
+                type: 'FeatureCollection',
+                features: features
+            };
+
+            displayWardData(geojson);
+            showToast(`Loaded ${numWards} sample wards for ${localBody}, ${district}`, 'success');
+        }
+
+        function getDistrictCenter(district) {
+            const centers = {
+                'Thiruvanathapuram': [8.5241, 76.9366],
+                'Kollam': [8.8932, 76.6141],
+                'Pathanamthitta': [9.2640, 76.7870],
+                'Alappuzha': [9.4980, 76.3388],
+                'Kottayam': [9.5915, 76.5222],
+                'Idukki': [9.8498, 76.9310],
+                'Ernakulam': [9.9816, 76.2998],
+                'Thrissur': [10.5276, 76.2144],
+                'Palakkad': [10.7867, 76.6547],
+                'Malappuram': [11.0736, 76.0740],
+                'Kozhikode': [11.2588, 75.7804],
+                'Wayanad': [11.6853, 76.1320],
+                'Kannur': [11.8745, 75.3704],
+                'Kasaragod': [12.4996, 74.9869]
+            };
+            return centers[district] || [10.8505, 76.2711];
+        }
+
+        function generatePolygonCoordinates(center, radius) {
+            const coords = [];
+            const numPoints = Math.floor(Math.random() * 5) + 5;
+
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * 2 * Math.PI;
+                const r = radius * (0.7 + Math.random() * 0.6);
+                coords.push([
+                    center[1] + r * Math.cos(angle),
+                    center[0] + r * Math.sin(angle)
+                ]);
+            }
+
+            return coords;
+        }
+
+        function displayWardData(geojson) {
+            if (wardLayer) {
+                map.removeLayer(wardLayer);
+            }
+
+            wardLayer = L.geoJSON(geojson, {
+                style: function(feature) {
+                    return {
+                        color: '#2e86ab',
+                        weight: 2,
+                        opacity: 0.7,
+                        fillColor: '#aed6f1',
+                        fillOpacity: 0.15
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const name = feature.properties?.name || feature.properties?.WARD_NAME || 'Unknown Ward';
+                    layer.bindPopup(`<b>${name}</b><br>${feature.properties?.localBody || ''}`);
+
+                    layer.on('mouseover', function() {
+                        layer.setStyle({ weight: 4, fillOpacity: 0.3 });
+                    });
+
+                    layer.on('mouseout', function() {
+                        layer.setStyle({ weight: 2, fillOpacity: 0.15 });
+                    });
+                }
+            }).addTo(map);
+
+            map.fitBounds(wardLayer.getBounds());
+
+            // Store features for snapping
+            wardFeatures = geojson.features || [];
+        }
+
+        // ==================== DRAWING FUNCTIONS ====================
+        function startDrawing() {
+            isDrawing = true;
+            const polygonDrawer = new L.Draw.Polygon(map, {
+                allowIntersection: false,
+                showArea: true,
+                shapeOptions: {
+                    color: '#e74c3c',
+                    weight: 3
+                }
+            });
+            polygonDrawer.enable();
+            showToast('Click on map to start drawing polygon. Double-click to finish.', 'info');
+        }
+
+        function editDrawing() {
+            if (allPolygons.length === 0) {
+                showToast('No polygons to edit!', 'error');
+                return;
+            }
+
+            const editHandler = new L.EditToolbar.Edit(map, {
+                featureGroup: drawnItems
+            });
+            editHandler.enable();
+            showToast('Click and drag vertices to edit. Click outside to finish.', 'info');
+        }
+
+        function deleteDrawing() {
+            if (allPolygons.length === 0) {
+                showToast('No polygons to delete!', 'error');
+                return;
+            }
+
+            const deleteHandler = new L.EditToolbar.Delete(map, {
+                featureGroup: drawnItems
+            });
+            deleteHandler.enable();
+            showToast('Click on a polygon to delete it. Click outside to finish.', 'info');
+        }
+
+        // ==================== POLYGON MANAGEMENT ====================
+        function selectPolygon(layer) {
+            currentPolygon = layer;
+            const name = layer.feature?.properties?.name || 'Unnamed';
+            document.getElementById('polygonName').value = name;
+
+            // Highlight in list
+            document.querySelectorAll('.polygon-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            const index = allPolygons.indexOf(layer);
+            const listItem = document.querySelector(`[data-index="${index}"]`);
+            if (listItem) {
+                listItem.classList.add('active');
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            // Highlight on map
+            layer.setStyle({ weight: 5, color: '#f39c12' });
+            setTimeout(() => {
+                layer.setStyle({ weight: 3, color: layer.options.originalColor || '#e74c3c' });
+            }, 2000);
+        }
+
+        function savePolygonName() {
+            if (!currentPolygon) {
+                showToast('No polygon selected! Draw or click a polygon first.', 'error');
+                return;
+            }
+
+            const name = document.getElementById('polygonName').value.trim();
+            if (!name) {
+                showToast('Please enter a name!', 'error');
+                return;
+            }
+
+            currentPolygon.feature = currentPolygon.feature || {};
+            currentPolygon.feature.properties = currentPolygon.feature.properties || {};
+            currentPolygon.feature.properties.name = name;
+
+            currentPolygon.bindPopup(`<b>${name}</b><br>ID: ${currentPolygon.feature.properties.id}`);
+
+            updatePolygonList();
+            showToast(`Polygon renamed to "${name}"`, 'success');
+        }
+
+        function updatePolygonList() {
+            const list = document.getElementById('polygonList');
+            list.innerHTML = '';
+
+            allPolygons.forEach((layer, index) => {
+                const name = layer.feature?.properties?.name || `Polygon ${index + 1}`;
+                const id = layer.feature?.properties?.id || index + 1;
+
+                const item = document.createElement('div');
+                item.className = 'polygon-item';
+                item.setAttribute('data-index', index);
+
+                const latLngs = layer.getLatLngs()[0];
+                const vertexCount = latLngs ? latLngs.length : 0;
+
+                item.innerHTML = `
+                    <div>
+                        <div class="name">${name}</div>
+                        <div class="coords">${vertexCount} vertices • ID: ${id}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn-primary" onclick="event.stopPropagation(); selectPolygonByIndex(${index})" title="Select">👁️</button>
+                        <button class="btn-success" onclick="event.stopPropagation(); downloadPolygon(${index})" title="Download">💾</button>
+                        <button class="btn-danger" onclick="event.stopPropagation(); deletePolygon(${index})" title="Delete">🗑️</button>
+                    </div>
+                `;
+
+                item.addEventListener('click', () => selectPolygon(layer));
+                list.appendChild(item);
+            });
+
+            document.getElementById('polygonCount').textContent = allPolygons.length;
+            document.getElementById('totalPolygons').textContent = allPolygons.length;
+        }
+
+        function selectPolygonByIndex(index) {
+            if (allPolygons[index]) {
+                selectPolygon(allPolygons[index]);
+                map.fitBounds(allPolygons[index].getBounds());
+            }
+        }
+
+        function deletePolygon(index) {
+            if (allPolygons[index]) {
+                drawnItems.removeLayer(allPolygons[index]);
+                allPolygons.splice(index, 1);
+                updatePolygonList();
+                showToast('Polygon deleted!', 'info');
+            }
+        }
+
+        function clearAllDrawings() {
+            if (allPolygons.length === 0) {
+                showToast('No polygons to clear!', 'error');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to delete all drawn polygons?')) {
+                return;
+            }
+
+            drawnItems.clearLayers();
+            allPolygons = [];
+            currentPolygon = null;
+            polygonCounter = 0;
+            updatePolygonList();
+            showToast('All polygons cleared!', 'info');
+        }
+
+        // ==================== DOWNLOAD FUNCTIONS ====================
+        function downloadPolygon(index) {
+            const layer = allPolygons[index];
+            if (!layer) return;
+
+            const name = layer.feature?.properties?.name || `polygon_${index + 1}`;
+            const geojson = layer.toGeoJSON();
+            geojson.properties = layer.feature?.properties || {};
+
+            const featureCollection = {
+                type: 'FeatureCollection',
+                features: [geojson]
+            };
+
+            downloadJSON(featureCollection, `${name.replace(/\s+/g, '_')}.geojson`);
+        }
+
+        function downloadAllPolygons() {
+            if (allPolygons.length === 0) {
+                showToast('No polygons to download!', 'error');
+                return;
+            }
+
+            const features = allPolygons.map(layer => {
+                const geojson = layer.toGeoJSON();
+                geojson.properties = layer.feature?.properties || {};
+                return geojson;
+            });
+
+            const featureCollection = {
+                type: 'FeatureCollection',
+                features: features,
+                properties: {
+                    createdAt: new Date().toISOString(),
+                    totalPolygons: features.length,
+                    source: 'WardMap Drawing Tool'
+                }
+            };
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            downloadJSON(featureCollection, `wardmap_polygons_${timestamp}.geojson`);
+            showToast(`Downloaded ${features.length} polygons as GeoJSON!`, 'success');
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ==================== UTILITY FUNCTIONS ====================
+        function getRandomColor() {
+            const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        function showToast(message, type = 'info') {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            loading.style.display = show ? 'flex' : 'none';
+        }
+
+        function setupEventListeners() {
+            document.getElementById('snapDistance').addEventListener('change', function() {
+                if (snapEnabled) {
+                    document.getElementById('snapModeInfo').textContent = 'ON (' + this.value + 'px)';
+                }
+            });
+
+            document.getElementById('polygonName').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    savePolygonName();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
