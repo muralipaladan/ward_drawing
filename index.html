@@ -3,115 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K-Smart Ward Map Viewer (Auto Zoom)</title>
+    <title>K-Smart Ward Map Viewer</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script> 
     
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f8f9fa;
-        }
-        .header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        .controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            padding: 20px;
-            background: #ffffff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            flex-wrap: wrap;
-            position: relative;
-            z-index: 1000;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; }
+        .header { background-color: #2c3e50; color: white; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 20px; background: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-wrap: wrap; position: relative; z-index: 1000; }
         
-        /* Smart Search Bar Styles */
-        .search-container {
-            position: relative;
-            width: 350px;
-        }
-        #smartSearch {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 2px solid #3498db;
-            border-radius: 5px;
-            outline: none;
-            box-sizing: border-box;
-        }
-        #smartSearch:focus {
-            border-color: #2980b9;
-            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
-        }
-        .suggestions-box {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ccc;
-            border-top: none;
-            border-radius: 0 0 5px 5px;
-            max-height: 250px;
-            overflow-y: auto;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: none;
-        }
-        .suggestion-item {
-            padding: 12px;
-            cursor: pointer;
-            border-bottom: 1px solid #f1f1f1;
-            font-size: 15px;
-        }
-        .suggestion-item:last-child { border-bottom: none; }
+        .search-container { position: relative; width: 350px; }
+        #smartSearch { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #3498db; border-radius: 5px; outline: none; box-sizing: border-box; }
+        #smartSearch:focus { border-color: #2980b9; box-shadow: 0 0 5px rgba(52, 152, 219, 0.5); }
+        .suggestions-box { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 5px 5px; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
+        .suggestion-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #f1f1f1; font-size: 15px; }
         .suggestion-item:hover { background-color: #ecf0f1; color: #2980b9; font-weight: bold; }
         .district-label { font-size: 12px; color: #7f8c8d; margin-left: 5px; }
 
-        button {
-            padding: 12px 20px;
-            font-size: 16px;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-        #goBtn { background-color: #e67e22; min-width: 100px; }
-        #goBtn:hover:not(:disabled) { background-color: #d35400; }
-        
+        button { padding: 12px 20px; font-size: 16px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        #goBtn { background-color: #e67e22; display: none; }
         #downloadBtn { background-color: #27ae60; }
         #downloadBtn:hover:not(:disabled) { background-color: #2ecc71; }
-        
         button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
         
-        #loadingText {
-            display: none;
-            color: #c0392b;
-            font-weight: bold;
-            font-size: 15px;
-            animation: blink 1s infinite;
-        }
+        #loadingText { display: none; color: #c0392b; font-weight: bold; font-size: 15px; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
-
-        #map {
-            height: calc(100vh - 150px);
-            width: 100%;
-            z-index: 1;
-        }
+        #map { height: calc(100vh - 150px); width: 100%; z-index: 1; }
     </style>
 </head>
 <body>
@@ -122,12 +42,13 @@
 
     <div class="controls">
         <div class="search-container">
-            <input type="text" id="smartSearch" placeholder="🔍 Search Panchayat (eg: Wandoor)..." autocomplete="off">
+            <input type="text" id="smartSearch" placeholder="⏳ Loading Panchayats from GitHub..." autocomplete="off" disabled>
             <div id="suggestions" class="suggestions-box"></div>
         </div>
         
-        <button id="goBtn" disabled style="display: none;">Load Map</button> <button id="downloadBtn" disabled>Download KML</button>
-        <span id="loadingText">⏳ Map Loading... Please Wait</span>
+        <button id="goBtn">Load Map</button>
+        <button id="downloadBtn" disabled>Download KML</button>
+        <span id="loadingText">⏳ Fetching Map Data...</span>
     </div>
 
     <div id="map"></div>
@@ -148,7 +69,10 @@
 
         // 1. Fetch URLs from GitHub 
         fetch('https://raw.githubusercontent.com/muralipaladan/ward_drawing/main/urls.txt')
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) throw new Error("GitHub File not found. Is it Public?");
+                return response.text();
+            })
             .then(text => {
                 text.split('\n').forEach(url => {
                     const cleanUrl = url.trim();
@@ -167,18 +91,21 @@
                     }
                 });
 
-                const options = {
-                    keys: ['panchayat', 'district'],
-                    threshold: 0.3,
-                    distance: 100
-                };
+                if(allData.length === 0) {
+                    alert("GitHub file-il ninnum data onnum kittiyilla. URL format check cheyyuka.");
+                    return;
+                }
+
+                const options = { keys: ['panchayat', 'district'], threshold: 0.3, distance: 100 };
                 fuse = new Fuse(allData, options);
                 
+                smartSearch.disabled = false;
                 smartSearch.placeholder = `🔍 Search from ${allData.length} Panchayats...`;
             })
             .catch(err => {
                 console.error(err);
-                alert("Data load cheyyan kazhinjilla. Internet connection check cheyyuka.");
+                alert("Error Loading GitHub URLs: \n" + err.message + "\n\nRepository Public aano ennu check cheyyuka.");
+                smartSearch.placeholder = "❌ Error Loading Data";
             });
 
         // Initialize Map
@@ -208,14 +135,11 @@
                     div.className = 'suggestion-item';
                     div.innerHTML = `${item.panchayat} <span class="district-label">(${item.district})</span>`;
                     
-                    // Click on a suggestion
                     div.addEventListener('click', () => {
                         smartSearch.value = item.panchayat;
                         selectedUrl = item.url;
                         currentPanchayatName = item.panchayat;
                         suggestionsBox.style.display = 'none';
-                        
-                        // AUTO TRIGGER MAP LOAD (Bypassing manual button click)
                         goBtn.click();
                     });
                     
@@ -226,28 +150,26 @@
             }
         });
 
-        // Hide suggestions when clicking outside
         document.addEventListener('click', function(e) {
             if (!smartSearch.contains(e.target) && !suggestionsBox.contains(e.target)) {
                 suggestionsBox.style.display = 'none';
             }
         });
 
-        // 3. Handle Data Fetch & Auto Zoom (Triggered automatically now)
+        // 3. Handle Data Fetch & Auto Zoom 
         goBtn.addEventListener('click', () => {
             if (!selectedUrl) return;
             
-            // UI Changes during loading
             smartSearch.disabled = true;
             downloadBtn.disabled = true;
             loadingText.style.display = "inline";
 
-            // Proxy to bypass CORS block
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(selectedUrl)}`;
+            // Using standard corsproxy.io which is usually more stable
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(selectedUrl)}`;
 
             fetch(proxyUrl)
                 .then(response => {
-                    if (!response.ok) throw new Error("Network error");
+                    if (!response.ok) throw new Error("CORS Proxy Network error");
                     return response.json();
                 })
                 .then(geoJsonData => {
@@ -267,17 +189,15 @@
                         }
                     }).addTo(map);
                     
-                    // Auto Focus & Zoom to the specific Panchayat area
                     map.fitBounds(currentLayer.getBounds());
                     
-                    // Reset UI
                     downloadBtn.disabled = false;
                     smartSearch.disabled = false;
                     loadingText.style.display = "none";
                 })
                 .catch(err => {
                     console.error(err);
-                    alert("Map load cheyyan sadhichilla. File format thettayirikkanam allenkil net slow aakam.");
+                    alert("Map load cheyyan sadhichilla. Error: " + err.message);
                     smartSearch.disabled = false;
                     loadingText.style.display = "none";
                 });
