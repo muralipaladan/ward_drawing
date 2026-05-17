@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K-Smart Ward Map Viewer & KML Downloader</title>
+    <title>K-Smart Ward Map Viewer (Smart Search)</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
-
-    <style>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script> <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -22,6 +21,7 @@
             color: white;
             padding: 15px;
             text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         .controls {
             display: flex;
@@ -32,86 +32,120 @@
             background: #ffffff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             flex-wrap: wrap;
+            position: relative;
+            z-index: 1000; /* Keeps search dropdown above map */
         }
-        select, button {
-            padding: 10px;
+        
+        /* Smart Search Bar Styles */
+        .search-container {
+            position: relative;
+            width: 350px;
+        }
+        #smartSearch {
+            width: 100%;
+            padding: 12px;
             font-size: 16px;
-            border: 1px solid #ccc;
+            border: 2px solid #3498db;
             border-radius: 5px;
             outline: none;
+            box-sizing: border-box;
         }
+        #smartSearch:focus {
+            border-color: #2980b9;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        }
+        .suggestions-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            max-height: 250px;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .suggestion-item {
+            padding: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            font-size: 15px;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background-color: #ecf0f1; color: #2980b9; font-weight: bold; }
+        .district-label { font-size: 12px; color: #7f8c8d; margin-left: 5px; }
+
         button {
+            padding: 12px 20px;
+            font-size: 16px;
             color: white;
             border: none;
+            border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
             transition: 0.3s;
         }
-        #goBtn {
-            background-color: #3498db;
-            min-width: 80px;
-        }
-        #goBtn:hover:not(:disabled) {
-            background-color: #2980b9;
-        }
-        #downloadBtn {
-            background-color: #27ae60;
-        }
-        #downloadBtn:hover:not(:disabled) {
-            background-color: #2ecc71;
-        }
-        button:disabled {
-            background-color: #95a5a6 !important;
-            cursor: not-allowed;
-        }
+        #goBtn { background-color: #e67e22; min-width: 100px; }
+        #goBtn:hover:not(:disabled) { background-color: #d35400; }
+        
+        #downloadBtn { background-color: #27ae60; }
+        #downloadBtn:hover:not(:disabled) { background-color: #2ecc71; }
+        
+        button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; }
+        
         #loadingText {
             display: none;
-            color: #d35400;
+            color: #c0392b;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 15px;
+            animation: blink 1s infinite;
         }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
         #map {
-            height: calc(100vh - 140px);
+            height: calc(100vh - 150px);
             width: 100%;
+            z-index: 1; /* Map stays behind search suggestions */
         }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2>K-Smart Ward Map Viewer & KML Downloader</h2>
+        <h2>K-Smart Ward Map - Smart Search</h2>
     </div>
 
     <div class="controls">
-        <select id="districtSelect">
-            <option value="">Select District (ജില്ല)</option>
-        </select>
+        <div class="search-container">
+            <input type="text" id="smartSearch" placeholder="🔍 Search Panchayat (eg: Wandoor)..." autocomplete="off">
+            <div id="suggestions" class="suggestions-box"></div>
+        </div>
         
-        <select id="panchayatSelect" disabled>
-            <option value="">Select Panchayat (പഞ്ചായത്ത്)</option>
-        </select>
-        
-        <button id="goBtn" disabled>Go</button>
+        <button id="goBtn" disabled>Load Map</button>
         <button id="downloadBtn" disabled>Download KML</button>
-        <span id="loadingText">Loading Data... Please Wait</span>
+        <span id="loadingText">⏳ Data Fetching... Please Wait</span>
     </div>
 
     <div id="map"></div>
 
     <script>
-        const distSelect = document.getElementById('districtSelect');
-        const panSelect = document.getElementById('panchayatSelect');
+        const smartSearch = document.getElementById('smartSearch');
+        const suggestionsBox = document.getElementById('suggestions');
         const goBtn = document.getElementById('goBtn');
         const downloadBtn = document.getElementById('downloadBtn');
         const loadingText = document.getElementById('loadingText');
         
-        let dataMap = {};
+        let allData = [];
+        let fuse = null; // Fuse.js instance
+        let selectedUrl = "";
+        let currentPanchayatName = "";
         let currentLayer = null;
         let currentGeoJSON = null;
-        let currentPanchayatName = "";
 
-        // 1. Fetch URLs from the new GitHub Text File on Page Load
-        // Note: Using 'raw.githubusercontent.com' to get the actual text file content
+        // 1. Fetch URLs from GitHub and Initialize Smart Search (Fuse.js)
         fetch('https://raw.githubusercontent.com/muralipaladan/ward_drawing/main/urls.txt')
             .then(response => response.text())
             .then(text => {
@@ -124,79 +158,97 @@
                     const nameParts = filename.split('_');
                     
                     if (nameParts.length >= 2) {
-                        const district = nameParts[0];
-                        const panchayat = nameParts[1];
-                        
-                        if (!dataMap[district]) dataMap[district] = [];
-                        dataMap[district].push({ name: panchayat, url: cleanUrl });
+                        allData.push({
+                            district: nameParts[0],
+                            panchayat: nameParts[1],
+                            url: cleanUrl
+                        });
                     }
                 });
 
-                // Populate District Dropdown
-                Object.keys(dataMap).sort().forEach(district => {
-                    let option = document.createElement('option');
-                    option.value = district;
-                    option.textContent = district;
-                    distSelect.appendChild(option);
-                });
+                // Set up Fuse.js for fuzzy AI-like search
+                const options = {
+                    keys: ['panchayat', 'district'],
+                    threshold: 0.3, // Allows minor typos (Fuzzy matching)
+                    distance: 100
+                };
+                fuse = new Fuse(allData, options);
+                
+                smartSearch.placeholder = `🔍 Search from ${allData.length} Panchayats...`;
             })
             .catch(err => {
                 console.error(err);
-                alert("GitHub file-il ninnum URL list load cheyyan kazhinjilla. Internet connection check cheyyuka.");
+                alert("Data load cheyyan kazhinjilla. Internet connection check cheyyuka.");
             });
 
-        // Initialize Map (Google Roads)
+        // Initialize Map (Google Roads Base Map)
         const map = L.map('map').setView([10.8505, 76.2711], 7);
         L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
             attribution: 'Map data © Google',
             maxZoom: 20
         }).addTo(map);
 
-        // 2. Handle District Change
-        distSelect.addEventListener('change', (e) => {
-            const district = e.target.value;
-            panSelect.innerHTML = '<option value="">Select Panchayat (പഞ്ചായത്ത്)</option>';
-            panSelect.disabled = !district;
+        // 2. Search Input Event (Auto-suggest)
+        smartSearch.addEventListener('input', function() {
+            const query = this.value;
+            suggestionsBox.innerHTML = ''; // Clear old suggestions
             goBtn.disabled = true;
-            downloadBtn.disabled = true;
+            
+            if (query.length < 2) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
 
-            if (district && dataMap[district]) {
-                dataMap[district].sort((a,b) => a.name.localeCompare(b.name)).forEach(panchayat => {
-                    let option = document.createElement('option');
-                    option.value = panchayat.url;
-                    option.textContent = panchayat.name;
-                    panSelect.appendChild(option);
+            // Perform Smart Search
+            const results = fuse.search(query).slice(0, 15); // Show top 15 results
+            
+            if (results.length > 0) {
+                suggestionsBox.style.display = 'block';
+                results.forEach(result => {
+                    const item = result.item;
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `${item.panchayat} <span class="district-label">(${item.district})</span>`;
+                    
+                    // Click on a suggestion
+                    div.addEventListener('click', () => {
+                        smartSearch.value = item.panchayat;
+                        selectedUrl = item.url;
+                        currentPanchayatName = item.panchayat;
+                        suggestionsBox.style.display = 'none';
+                        goBtn.disabled = false; // Enable Load Map button
+                    });
+                    
+                    suggestionsBox.appendChild(div);
                 });
+            } else {
+                suggestionsBox.style.display = 'none';
             }
         });
 
-        // 3. Handle Panchayat Change (Enable Go Button)
-        panSelect.addEventListener('change', (e) => {
-            const url = e.target.value;
-            goBtn.disabled = !url;
-            downloadBtn.disabled = true; // Disable download until map is loaded
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!smartSearch.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.style.display = 'none';
+            }
         });
 
-        // 4. Handle "Go" Button Click (Load JSON to Map)
+        // 3. Handle "Load Map" Button Click
         goBtn.addEventListener('click', () => {
-            const url = panSelect.value;
-            if (!url) return;
-            
-            currentPanchayatName = panSelect.options[panSelect.selectedIndex].text;
+            if (!selectedUrl) return;
             
             // UI Changes during loading
             goBtn.disabled = true;
-            panSelect.disabled = true;
-            distSelect.disabled = true;
+            smartSearch.disabled = true;
             downloadBtn.disabled = true;
             loadingText.style.display = "inline";
 
-            // Proxy to avoid CORS
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            // Proxy to bypass CORS block
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(selectedUrl)}`;
 
             fetch(proxyUrl)
                 .then(response => {
-                    if (!response.ok) throw new Error("Network response error");
+                    if (!response.ok) throw new Error("Network error");
                     return response.json();
                 })
                 .then(geoJsonData => {
@@ -205,45 +257,42 @@
                     currentGeoJSON = geoJsonData;
                     
                     currentLayer = L.geoJSON(geoJsonData, {
-                        style: { color: "#d35400", weight: 2, opacity: 1, fillOpacity: 0.2 },
+                        style: { color: "#2980b9", weight: 2, opacity: 1, fillOpacity: 0.3 },
                         onEachFeature: function (feature, layer) {
                             if (feature.properties) {
-                                let popupContent = "<b>Panchayat:</b> " + currentPanchayatName + "<br>";
-                                if(feature.properties.ward_name) popupContent += "<b>Ward:</b> " + feature.properties.ward_name + "<br>";
-                                if(feature.properties.ward_no) popupContent += "<b>Ward No:</b> " + feature.properties.ward_no;
+                                let popupContent = `<b style="color:#e67e22;">Panchayat:</b> ${currentPanchayatName}<br>`;
+                                if(feature.properties.ward_name) popupContent += `<b>Ward:</b> ${feature.properties.ward_name}<br>`;
+                                if(feature.properties.ward_no) popupContent += `<b>Ward No:</b> ${feature.properties.ward_no}`;
                                 layer.bindPopup(popupContent);
                             }
                         }
                     }).addTo(map);
                     
+                    // Auto Focus
                     map.fitBounds(currentLayer.getBounds());
                     
                     // Reset UI
                     downloadBtn.disabled = false;
                     goBtn.disabled = false;
-                    panSelect.disabled = false;
-                    distSelect.disabled = false;
+                    smartSearch.disabled = false;
                     loadingText.style.display = "none";
                 })
                 .catch(err => {
                     console.error(err);
-                    alert("Data load aakunilla. Panchayat file exist aavunnundo ennu urappu varuthuka.");
-                    
-                    // Reset UI on error
+                    alert("Map load cheyyan sadhichilla. File format thettayirikkanam allenkil net slow aakam.");
                     goBtn.disabled = false;
-                    panSelect.disabled = false;
-                    distSelect.disabled = false;
+                    smartSearch.disabled = false;
                     loadingText.style.display = "none";
                 });
         });
 
-        // 5. Download KML
+        // 4. Download KML Event
         downloadBtn.addEventListener('click', () => {
             if (!currentGeoJSON) return;
             try {
                 const kml = tokml(currentGeoJSON, {
                     documentName: currentPanchayatName,
-                    documentDescription: 'Converted from K-Smart GeoJSON'
+                    documentDescription: 'Generated for K-Smart HLB Mapping'
                 });
                 
                 const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
