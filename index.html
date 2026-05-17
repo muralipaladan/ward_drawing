@@ -110,8 +110,9 @@
         let currentGeoJSON = null;
         let currentPanchayatName = "";
 
-        // 1. Fetch URLs from GitHub Text File on Page Load
-        fetch('https://raw.githubusercontent.com/Vonter/kerala-wards/main/urls.txt')
+        // 1. Fetch URLs from the new GitHub Text File on Page Load
+        // Note: Using 'raw.githubusercontent.com' to get the actual text file content
+        fetch('https://raw.githubusercontent.com/muralipaladan/ward_drawing/main/urls.txt')
             .then(response => response.text())
             .then(text => {
                 text.split('\n').forEach(url => {
