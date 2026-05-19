@@ -8,11 +8,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-snap@0.0.4/leaflet.snap.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-geometryutil@0.1.0/src/leaflet.geometryutil.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
 
     <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script> 
@@ -39,12 +36,15 @@
         #loadingText { display: none; color: #c0392b; font-weight: bold; font-size: 15px; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
         #map { height: calc(100vh - 150px); width: 100%; z-index: 1; }
+        
+        /* Custom styles for precise cursor and magnifying effect */
+        .leaflet-container { cursor: crosshair !important; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2>K-Smart Ward Map - Drawing & Smart Search</h2>
+        <h2>K-Smart Ward Map - Advanced Drawing & Snapping</h2>
     </div>
 
     <div class="controls">
@@ -84,7 +84,7 @@
             maxZoom: 20
         });
 
-        // Initialize Map with Google Roads as default
+        // Initialize Map
         const map = L.map('map', {
             center: [10.8505, 76.2711],
             zoom: 7,
@@ -96,52 +96,36 @@
             "Google Road Map": googleRoads,
             "Google Hybrid Map": googleHybrid
         };
-        L.control.layers(baseMaps).addTo(map);
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
-        // Feature Group to hold drawn items
-        const drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
-
-        // Drawing Toolbar Setup
-        const drawControl = new L.Control.Draw({
-            draw: {
-                polygon: {
-                    allowIntersection: false,
-                    shapeOptions: { color: '#e74c3c', weight: 3 }
-                },
-                polyline: false,
-                circle: false,
-                rectangle: false,
-                marker: false,
-                circlemarker: false
-            },
-            edit: {
-                featureGroup: drawnItems,
-                remove: true
-            }
-        });
-        map.addControl(drawControl);
-
-        // Enable Snapping while drawing
-        let snapGuides = [];
-        map.on('draw:drawstart', function (e) {
-            if (e.layerType === 'polygon') {
-                const drawHandler = e.target._toolbars.draw._modes.polygon.handler;
-                
-                // Add snapping guidance to existing loaded layer and drawn layers
-                if (currentLayer) snapGuides.push(currentLayer);
-                snapGuides.push(drawnItems);
-
-                // Setup snap guide interaction
-                drawHandler.options.guideLayers = snapGuides;
-            }
+        // Geoman Drawing Toolbar Configuration
+        map.pm.addControls({
+            position: 'topleft',
+            drawMarker: false,
+            drawCircleMarker: false,
+            drawPolyline: false,
+            drawRectangle: false,
+            drawCircle: false,
+            drawPolygon: true, // പോളിഗൺ ടൂൾ മാത്രം എനേബിൾ ചെയ്തു
+            editMode: true,
+            dragMode: true,
+            removalMode: true
         });
 
-        // Event when a new polygon is finished drawing
-        map.on(L.Draw.Event.CREATED, function (event) {
-            const layer = event.layer;
-            drawnItems.addLayer(layer);
-            downloadBtn.disabled = false; // Enable download when something is drawn
+        // Global Snapping Settings for ultra-precision
+        map.pm.setGlobalOptions({
+            snappable: true,
+            snapDistance: 20,       // 20 പിക്സൽ അടുത്തുകൂടി പോകുമ്പോൾ തന്നെ മാഗ്നറ്റിക് ആയി ഒട്ടിപ്പിടിക്കും
+            snapSegment: true,       // ലൈനുകളുടെ ഇടയിലും സ്നാപ്പ് ചെയ്യും
+            snapVertex: true,        // കോർണർ പോയിന്റുകളിൽ കൃത്യമായി സ്നാപ്പ് ചെയ്യും
+            allowSelfIntersection: false,
+            templineStyle: { color: '#e74c3c', dashArray: '5, 5' }, // Magnifying Pointer Guide Line
+            hintlineStyle: { color: '#27ae60', dashArray: '5, 5' }
+        });
+
+        // വരയ്ക്കുമ്പോൾ ഡൗൺലോഡ് ബട്ടൺ ആക്റ്റീവ് ആക്കാൻ
+        map.on('pm:create', function(e) {
+            downloadBtn.disabled = false;
         });
 
         // 1. Fetch URLs from GitHub 
@@ -270,27 +254,27 @@
                 });
         });
 
-        // 4. Download Combined KML (Base Ward Map + Drawn Polygons)
+        // 4. Download Combined KML
         downloadBtn.addEventListener('click', () => {
             try {
-                // Feature Collection create ചെയ്യുക
                 let combinedGeoJSON = {
                     type: "FeatureCollection",
                     features: []
                 };
 
-                // പഴയ വാർഡ് മാപ്പ് ഡാറ്റ ഉണ്ടെങ്കിൽ അത് ചേർക്കുക
+                // പഴയ വാർഡ് മാപ്പ് ഡാറ്റ ചേർക്കുന്നു
                 if (currentLayer) {
                     currentLayer.eachLayer(layer => {
                         combinedGeoJSON.features.push(layer.toGeoJSON());
                     });
                 }
 
-                // നമ്മൾ വരച്ച പുതിയ പോളിഗണുകൾ കൂടി ചേർക്കുക
-                drawnItems.eachLayer(layer => {
+                // Geoman വഴി വരച്ച എല്ലാ ലെയറുകളും കണ്ടെത്തി ചേർക്കുന്നു
+                const geomanLayers = map.pm.getGeomanLayers(true);
+                geomanLayers.eachLayer(layer => {
                     let geojson = layer.toGeoJSON();
                     if(!geojson.properties) geojson.properties = {};
-                    geojson.properties.ward_name = "Drawn Custom Ward/Polygon";
+                    geojson.properties.ward_name = "Drawn Custom Ward";
                     combinedGeoJSON.features.push(geojson);
                 });
 
@@ -301,7 +285,7 @@
 
                 const kml = tokml(combinedGeoJSON, {
                     documentName: currentPanchayatName,
-                    documentDescription: 'Generated for K-Smart HLB Mapping with Custom Polygons'
+                    documentDescription: 'Generated via K-Smart Advanced Editor'
                 });
                 
                 const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
