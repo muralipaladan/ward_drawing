@@ -74,7 +74,7 @@
     </div>
 
     <div id="page2" class="page">
-        <div id="mapLoader"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading Map Data...</div>
+        <div id="mapLoader"><i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Loading Map Data...</div>
         <div id="map"></div>
         
         <div class="map-controls">
@@ -103,16 +103,16 @@
         let map = null;
         let gpsMarker = null;
 
-        // 1. Fetch URLs from GitHub
+        // 1. Fetch URLs from GitHub 
         fetch('https://raw.githubusercontent.com/muralipaladan/ward_drawing/main/urls.txt')
             .then(response => response.text())
             .then(text => {
                 text.split('\n').forEach(url => {
                     const cleanUrl = url.trim();
-                    if (!cleanUrl) return;
+                    if (!cleanUrl || !cleanUrl.startsWith('http')) return; // എറർ വരാതിരിക്കാൻ വാലിഡ് ലിങ്ക് മാത്രം എടുക്കുന്നു
                     
                     const parts = cleanUrl.split('/');
-                    const filename = parts[parts.length - 1]; 
+                    const filename = decodeURIComponent(parts[parts.length - 1]); // സ്പേസുകൾ ഉണ്ടെങ്കിൽ ശരിയാക്കാൻ
                     const nameParts = filename.split('_');
                     
                     if (nameParts.length >= 2) {
@@ -132,6 +132,7 @@
             })
             .catch(err => {
                 smartSearch.placeholder = "❌ Error Loading Data";
+                console.error("GitHub Fetch Error:", err);
             });
 
         // 2. Search Input Event (Auto-suggest)
@@ -188,8 +189,8 @@
             if (currentLayer) map.removeLayer(currentLayer);
             if (gpsMarker) map.removeLayer(gpsMarker);
 
-            // പുതിയതും കൂടുതൽ സ്റ്റേബിളും ആയ പ്രോക്സി ഉപയോഗിക്കുന്നു
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(geojsonUrl)}`;
+            // ഏറ്റവും സ്റ്റേബിൾ ആയ കോഡ്ടാബ്സ് പ്രോക്സി ഉപയോഗിക്കുന്നു + URL എൻകോഡിങ് നൽകുന്നു
+            const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(geojsonUrl)}`;
 
             fetch(proxyUrl)
                 .then(response => {
@@ -221,8 +222,8 @@
                     mapLoader.style.display = 'none';
                 })
                 .catch(err => {
-                    console.error("Fetch Error:", err);
-                    alert("മാപ്പ് ലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.\nError: " + err.message);
+                    console.error("Map Fetch Error:", err);
+                    alert("മാപ്പ് ലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ദയവായി അല്പനേരം കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.");
                     goHome();
                 });
         }
