@@ -5,15 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>K-Smart Ward Map</title>
     
-    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Tokml for KML Export & Fuse.js for Search[cite: 1] -->
     <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script> 
     
-    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
@@ -64,7 +61,6 @@
 </head>
 <body>
 
-    <!-- PAGE 1: Search View -->
     <div id="page1" class="page active">
         <div class="title-box">
             <h1>K-Smart Ward Map</h1>
@@ -77,12 +73,10 @@
         <div id="loadingText">Fetching Data... Please wait.</div>
     </div>
 
-    <!-- PAGE 2: Full Screen Map View -->
     <div id="page2" class="page">
         <div id="mapLoader"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading Map Data...</div>
         <div id="map"></div>
         
-        <!-- Bottom Right Controls Only -->
         <div class="map-controls">
             <button class="control-btn" id="gpsBtn" title="Live GPS Location"><i class="fas fa-crosshairs"></i></button>
             <button class="control-btn" id="downloadBtn" title="Download KML"><i class="fas fa-download"></i></button>
@@ -91,7 +85,6 @@
     </div>
 
     <script>
-        // DOM Elements
         const page1 = document.getElementById('page1');
         const page2 = document.getElementById('page2');
         const smartSearch = document.getElementById('smartSearch');
@@ -110,7 +103,7 @@
         let map = null;
         let gpsMarker = null;
 
-        // 1. Fetch URLs from GitHub[cite: 1]
+        // 1. Fetch URLs from GitHub
         fetch('https://raw.githubusercontent.com/muralipaladan/ward_drawing/main/urls.txt')
             .then(response => response.text())
             .then(text => {
@@ -132,7 +125,7 @@
                 });
 
                 const options = { keys: ['panchayat', 'district'], threshold: 0.3, distance: 100 };
-                fuse = new Fuse(allData, options); // Initialize Fuse.js for search[cite: 1]
+                fuse = new Fuse(allData, options);
                 
                 smartSearch.disabled = false;
                 smartSearch.placeholder = `🔍 Search Panchayat...`;
@@ -141,7 +134,7 @@
                 smartSearch.placeholder = "❌ Error Loading Data";
             });
 
-        // 2. Search Input Event (Auto-suggest)[cite: 1]
+        // 2. Search Input Event (Auto-suggest)
         smartSearch.addEventListener('input', function() {
             const query = this.value;
             suggestionsBox.innerHTML = '';
@@ -161,7 +154,6 @@
                     div.className = 'suggestion-item';
                     div.innerHTML = `${item.panchayat} <span class="district-label">(${item.district})</span>`;
                     
-                    // On Panchayat Click
                     div.addEventListener('click', () => {
                         smartSearch.value = '';
                         suggestionsBox.style.display = 'none';
@@ -176,7 +168,6 @@
             }
         });
 
-        // Hide suggestions when clicking outside
         document.addEventListener('click', function(e) {
             if (!smartSearch.contains(e.target) && !suggestionsBox.contains(e.target)) {
                 suggestionsBox.style.display = 'none';
@@ -185,35 +176,27 @@
 
         // 3. Initialize Map and Load GeoJSON
         function openMapPage(geojsonUrl) {
-            // Switch Pages
             page1.classList.remove('active');
             page2.classList.add('active');
             mapLoader.style.display = 'flex';
 
-            // Initialize Map if not already done (Zoom control hidden as requested)
             if (!map) {
-                const googleRoads = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-                    maxZoom: 20
-                });
-                
-                map = L.map('map', {
-                    zoomControl: false, // Default tools removed
-                    layers: [googleRoads]
-                });
+                const googleRoads = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
+                map = L.map('map', { zoomControl: false, layers: [googleRoads] });
             }
 
-            // Remove previous layers
             if (currentLayer) map.removeLayer(currentLayer);
             if (gpsMarker) map.removeLayer(gpsMarker);
 
-            // പ്രോക്സി ഒഴിവാക്കി നേരിട്ട് ഫെച്ച് ചെയ്യുന്നു
-            fetch(geojsonUrl)
+            // പുതിയതും കൂടുതൽ സ്റ്റേബിളും ആയ പ്രോക്സി ഉപയോഗിക്കുന്നു
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(geojsonUrl)}`;
+
+            fetch(proxyUrl)
                 .then(response => {
                     if (!response.ok) throw new Error("Network response was not ok");
                     return response.json();
                 })
                 .then(geoJsonData => {
-                    // Injecting KML style properties for pink outline and transparent fill
                     geoJsonData.features.forEach(feature => {
                         if (!feature.properties) feature.properties = {};
                         feature.properties.stroke = "#FF69B4"; // Pink
@@ -221,14 +204,8 @@
                         feature.properties["fill-opacity"] = 0; // Transparent
                     });
 
-                    // Add to map with Pink / Transparent styling
                     currentLayer = L.geoJSON(geoJsonData, {
-                        style: { 
-                            color: "#FF69B4", // Pink borders
-                            weight: 3, 
-                            opacity: 1, 
-                            fillOpacity: 0  // Transparent area
-                        },
+                        style: { color: "#FF69B4", weight: 3, opacity: 1, fillOpacity: 0 },
                         onEachFeature: function (feature, layer) {
                             if (feature.properties) {
                                 let popupContent = `<b>${currentPanchayatName}</b><br>`;
@@ -240,12 +217,12 @@
                     }).addTo(map);
                     
                     map.fitBounds(currentLayer.getBounds());
-                    setTimeout(() => { map.invalidateSize(); }, 200); // Fix rendering issues
+                    setTimeout(() => { map.invalidateSize(); }, 200);
                     mapLoader.style.display = 'none';
                 })
                 .catch(err => {
                     console.error("Fetch Error:", err);
-                    alert("മാപ്പ് ലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.");
+                    alert("മാപ്പ് ലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.\nError: " + err.message);
                     goHome();
                 });
         }
@@ -260,14 +237,8 @@
                     
                     if(gpsMarker) map.removeLayer(gpsMarker);
                     
-                    // Blue dot for GPS
                     gpsMarker = L.circleMarker([lat, lng], {
-                        radius: 8,
-                        fillColor: "#3498db",
-                        color: "#fff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 1
+                        radius: 8, fillColor: "#3498db", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1
                     }).addTo(map);
                     
                     map.flyTo([lat, lng], 16);
@@ -281,21 +252,17 @@
             }
         });
 
-        // 5. Download KML Logic[cite: 1]
+        // 5. Download KML Logic
         downloadBtn.addEventListener('click', () => {
             try {
                 if (!currentLayer) return;
 
-                let combinedGeoJSON = {
-                    type: "FeatureCollection",
-                    features: []
-                };
+                let combinedGeoJSON = { type: "FeatureCollection", features: [] };
 
                 currentLayer.eachLayer(layer => {
                     combinedGeoJSON.features.push(layer.toGeoJSON());
                 });
 
-                // Generate KML using Tokml[cite: 1]
                 const kml = tokml(combinedGeoJSON, {
                     documentName: currentPanchayatName,
                     documentDescription: 'Ward Map with Transparent Area and Pink Lines'
