@@ -231,19 +231,43 @@
                     return response.json();
                 })
                 .then(geoJsonData => {
+                    // Debug: adyathe feature-nte properties console-il kaanikkan (F12 -> Console tab check cheyyuka)
+                    if (geoJsonData.features && geoJsonData.features.length > 0) {
+                        console.log("Sample feature properties:", geoJsonData.features[0].properties);
+                    }
+
+                    // Property-nte peru ethu case/spelling il aayalum ward number/name kandupidikkan
+                    function findProp(properties, matchers) {
+                        if (!properties) return null;
+                        const keys = Object.keys(properties);
+                        for (const key of keys) {
+                            const lowerKey = key.toLowerCase().replace(/[\s_-]/g, '');
+                            for (const m of matchers) {
+                                if (lowerKey === m || lowerKey.includes(m)) {
+                                    const val = properties[key];
+                                    if (val !== null && val !== undefined && val !== '') return val;
+                                }
+                            }
+                        }
+                        return null;
+                    }
+
                     currentLayer = L.geoJSON(geoJsonData, {
                         style: { color: "#FF69B4", weight: 3, opacity: 1, fillOpacity: 0 },
                         onEachFeature: function (feature, layer) {
                             if (feature.properties) {
+                                const wardNo = findProp(feature.properties, ['wardno', 'wardnumber', 'wno', 'no']);
+                                const wardName = findProp(feature.properties, ['wardname', 'name']);
+
                                 let popupContent = `<b>${currentPanchayatName}</b><br>`;
-                                if(feature.properties.ward_name) popupContent += `Ward: ${feature.properties.ward_name}<br>`;
-                                if(feature.properties.ward_no) popupContent += `Ward No: ${feature.properties.ward_no}`;
+                                if(wardName) popupContent += `Ward: ${wardName}<br>`;
+                                if(wardNo) popupContent += `Ward No: ${wardNo}`;
                                 layer.bindPopup(popupContent);
 
                                 // Ward-inte peru & number sthiramayi polygon-nte nadu-vil kaanikkan
                                 let labelParts = [];
-                                if(feature.properties.ward_no) labelParts.push(`Ward ${feature.properties.ward_no}`);
-                                if(feature.properties.ward_name) labelParts.push(feature.properties.ward_name);
+                                if(wardNo) labelParts.push(`Ward ${wardNo}`);
+                                if(wardName) labelParts.push(wardName);
                                 if(labelParts.length > 0) {
                                     layer.bindTooltip(labelParts.join('<br>'), {
                                         permanent: true,
