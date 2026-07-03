@@ -182,8 +182,27 @@
             mapLoader.style.display = 'flex';
 
             if (!map) {
-                const googleRoads = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 });
+                const googleRoads = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    attribution: 'Map data © Google',
+                    maxZoom: 20
+                });
+                const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                    attribution: 'Map data © Google',
+                    maxZoom: 20
+                });
+                const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                });
+
                 map = L.map('map', { zoomControl: false, layers: [googleRoads] });
+
+                const baseMaps = {
+                    "Google Road": googleRoads,
+                    "Google Hybrid": googleHybrid,
+                    "OpenStreetMap": osm
+                };
+                L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
             }
 
             if (currentLayer) map.removeLayer(currentLayer);
